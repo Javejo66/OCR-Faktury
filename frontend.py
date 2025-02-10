@@ -1,23 +1,23 @@
 import streamlit as st
 import requests
 
-BACKEND_URL = "http://127.0.0.1:8000/upload-multiple/"
+# Nastavení URL backendu
+BACKEND_URL = "https://ocr-faktury.onrender.com/upload-multiple/"
 
-st.set_page_config(page_title="OCR Faktury", page_icon="📄", layout="wide")
+st.title("Nahrávání více faktur")
 
-st.title("📄 Hromadné nahrávání faktur pro Money S3")
-st.write("Nahrajte faktury (PDF, JPG, PNG) a aplikace automaticky extrahuje důležité údaje.")
+# Pole pro nahrání více souborů
+uploaded_files = st.file_uploader("Vyberte faktury", type=["pdf", "jpg", "png"], accept_multiple_files=True)
 
-uploaded_files = st.file_uploader("📂 Nahrajte více faktur najednou", type=["pdf", "jpg", "png"], accept_multiple_files=True)
-
-if uploaded_files:
-    files = [("files", (file.name, file.getvalue(), file.type)) for file in uploaded_files]
-    with st.spinner("Zpracovávám faktury..."):
+if st.button("Nahrát faktury"):
+    if uploaded_files:
+        files = [("files", (file.name, file.getvalue())) for file in uploaded_files]
         response = requests.post(BACKEND_URL, files=files)
 
-    if response.status_code == 200:
-        st.success("✅ Faktury byly úspěšně zpracovány!")
-        st.text_area("📄 XML Výstup:", response.json()["xml"], height=300)
-        st.download_button("📥 Stáhnout XML", response.json()["xml"], file_name="hromadne_faktury.xml")
+        if response.status_code == 200:
+            st.success("Faktury úspěšně nahrány!")
+            st.json(response.json())  # Zobrazíme odpověď backendu
+        else:
+            st.error(f"Chyba při nahrávání: {response.status_code}")
     else:
-        st.error("❌ Chyba při zpracování faktur. Zkuste to znovu.")
+        st.warning("Prosím vyberte soubory k nahrání.")
