@@ -6,3 +6,4 @@ Pillow
 lxml
 streamlit
 requests
+python-multipart
