@@ -5,15 +5,11 @@ from PIL import Image
 import xml.etree.ElementTree as ET
 import io
 import re
-from collections import defaultdict
 from typing import List
 
 app = FastAPI()
 
-# Nastavení cesty k Tesseract OCR
-pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
-
-# Regulární výrazy pro extrakci klíčových údajů z faktury
+# Regulární výrazy pro extrakci údajů
 REGEX_PATTERNS = {
     "ico": r"IČO[:\s]*(\d{8})",
     "dic": r"DIČ[:\s]*([A-Z]{2}\d+)",
@@ -29,7 +25,7 @@ REGEX_PATTERNS = {
 @app.post("/upload-multiple/")
 async def upload_multiple_invoices(files: List[UploadFile] = File(...)):
     faktury = []
-    
+
     for file in files:
         contents = await file.read()
         text = extract_text_from_file(contents, file.filename)
@@ -42,18 +38,21 @@ async def upload_multiple_invoices(files: List[UploadFile] = File(...)):
 
 def extract_text_from_file(contents: bytes, filename: str) -> str:
     """OCR extrahuje text z PDF nebo obrázku."""
-    if filename.endswith(".pdf"):
-        images = convert_from_bytes(contents)
-        text = "\n".join(pytesseract.image_to_string(img, lang="ces") for img in images)
-    else:
-        image = Image.open(io.BytesIO(contents))
-        text = pytesseract.image_to_string(image, lang="ces")
-    return text.strip()
+    try:
+        if filename.endswith(".pdf"):
+            images = convert_from_bytes(contents)
+            text = "\n".join(pytesseract.image_to_string(img, lang="ces") for img in images)
+        else:
+            image = Image.open(io.BytesIO(contents))
+            text = pytesseract.image_to_string(image, lang="ces")
+        return text.strip()
+    except Exception as e:
+        return f"Chyba při zpracování souboru {filename}: {e}"
 
 def extract_invoice_data(text: str) -> dict:
     """Vytěží klíčové údaje z textu faktury."""
     data = {}
-    
+
     for key, pattern in REGEX_PATTERNS.items():
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
@@ -63,7 +62,7 @@ def extract_invoice_data(text: str) -> dict:
                 data.setdefault(key, {})[sazba] = hodnota.strip()
             else:
                 data[key] = match.group(1).strip()
-    
+
     return data
 
 def generate_xml(filename: str, faktura_data: dict) -> str:
@@ -80,7 +79,6 @@ def generate_xml(filename: str, faktura_data: dict) -> str:
 
     polozky = ET.SubElement(faktura, "Polozky")
     
-    # Přidání položek podle sazeb DPH
     for sazba, hodnota in faktura_data.get("zaklad_dph", {}).items():
         polozka = ET.SubElement(polozky, "Polozka")
         ET.SubElement(polozka, "SazbaDPH").text = sazba + "%"
