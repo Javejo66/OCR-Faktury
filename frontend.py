@@ -1,23 +1,16 @@
 import streamlit as st
 import requests
 
-# Nastavení URL backendu
-BACKEND_URL = "https://ocr-faktury.onrender.com/upload-multiple/"
+st.title("Hromadné nahrávání faktur")
 
-st.title("Nahrávání více faktur")
+uploaded_files = st.file_uploader("Vyber faktury", type=["pdf", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
-# Pole pro nahrání více souborů
-uploaded_files = st.file_uploader("Vyberte faktury", type=["pdf", "jpg", "png"], accept_multiple_files=True)
+if uploaded_files:
+    files = [("files", (file.name, file.getvalue())) for file in uploaded_files]
+    response = requests.post("https://ocr-faktury.onrender.com/upload-multiple/", files=files)
 
-if st.button("Nahrát faktury"):
-    if uploaded_files:
-        files = [("files", (file.name, file.getvalue())) for file in uploaded_files]
-        response = requests.post(BACKEND_URL, files=files)
-
-        if response.status_code == 200:
-            st.success("Faktury úspěšně nahrány!")
-            st.json(response.json())  # Zobrazíme odpověď backendu
-        else:
-            st.error(f"Chyba při nahrávání: {response.status_code}")
+    if response.status_code == 200:
+        st.success("Faktury úspěšně zpracovány!")
+        st.text_area("Výstupní XML:", response.json().get("xml", ""), height=300)
     else:
-        st.warning("Prosím vyberte soubory k nahrání.")
+        st.error("Chyba při zpracování faktur")
