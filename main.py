@@ -1,29 +1,38 @@
 from fastapi import FastAPI, File, UploadFile
-from typing import List
+from fastapi.responses import JSONResponse
 import pytesseract
 from pdf2image import convert_from_bytes
 from PIL import Image
 import io
+import os
 
 app = FastAPI()
 
-@app.post("/upload-multiple/")
-async def upload_multiple_invoices(files: List[UploadFile] = File(...)):
-    faktury = []
-    
+@app.get("/")
+def read_root():
+    return {"message": "Ahoj, server běží!"}
+
+@app.post("/upload/")
+async def upload_files(files: list[UploadFile]):
+    extracted_texts = {}
+
     for file in files:
-        contents = await file.read()
-        text = extract_text_from_file(contents, file.filename)
-        faktury.append({"filename": file.filename, "text": text})
+        file_extension = file.filename.split(".")[-1].lower()
+        file_data = await file.read()
 
-    return {"message": "Faktury zpracovány", "faktury": faktury}
+        try:
+            if file_extension == "pdf":
+                images = convert_from_bytes(file_data)
+                text = "\n".join([pytesseract.image_to_string(img) for img in images])
+            elif file_extension in ["png", "jpg", "jpeg"]:
+                image = Image.open(io.BytesIO(file_data))
+                text = pytesseract.image_to_string(image)
+            else:
+                return JSONResponse(content={"error": f"Nepodporovaný typ souboru: {file.filename}"}, status_code=400)
 
-def extract_text_from_file(contents: bytes, filename: str) -> str:
-    """OCR extrahuje text z PDF nebo obrázku."""
-    if filename.endswith(".pdf"):
-        images = convert_from_bytes(contents)
-        text = "\n".join(pytesseract.image_to_string(img, lang="ces") for img in images)
-    else:
-        image = Image.open(io.BytesIO(contents))
-        text = pytesseract.image_to_string(image, lang="ces")
-    return text.strip()
+            extracted_texts[file.filename] = text.strip()
+
+        except Exception as e:
+            return JSONResponse(content={"error": f"Chyba při zpracování {file.filename}: {str(e)}"}, status_code=500)
+
+    return {"extrahovaný_text": extracted_texts}
