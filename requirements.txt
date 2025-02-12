@@ -8,3 +8,5 @@ streamlit
 requests
 python-multipart
 # force rebuild
+pytesseract
+
